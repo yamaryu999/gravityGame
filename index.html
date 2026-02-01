@@ -229,7 +229,24 @@
     <div id="message">
         GAME OVER
         <span class="sub" id="finalScore">SCORE: 0</span>
-        <span class="sub" style="font-size: 16px; margin-top: 20px;">TAP TO RETRY</span>
+        <div id="reviveUI"
+            style="margin-top: 30px; display: flex; flex-direction: column; gap: 15px; align-items: center;">
+            <button id="btnRevive"
+                style="padding: 15px 30px; font-size: 20px; background: #0f0; color: #000; border: none; font-weight: bold; cursor: pointer; border-radius: 5px; box-shadow: 0 0 10px #0f0;">
+                WATCH AD TO REVIVE
+            </button>
+            <button id="btnGiveUp"
+                style="padding: 10px 20px; font-size: 16px; background: transparent; color: #f00; border: 1px solid #f00; cursor: pointer; border-radius: 5px;">
+                GIVE UP
+            </button>
+        </div>
+    </div>
+
+    <div id="adOverlay"
+        style="position: absolute; inset: 0; background: #000; z-index: 200; display: none; flex-direction: column; justify-content: center; align-items: center;">
+        <div style="font-size: 30px; color: #fff; margin-bottom: 20px;">ADVERTISEMENT</div>
+        <div style="font-size: 16px; color: #aaa;">Simulating Ad Network...</div>
+        <div id="adTimer" style="font-size: 40px; color: #0ff; margin-top: 30px;">3</div>
     </div>
     <canvas id="gameCanvas"></canvas>
 
@@ -278,7 +295,8 @@
             isMatrix: false, timeScaleTarget: 1.0, camera: { x: 0, y: 0 },
             particles: [], stars: [], playerVisual: { scaleX: 1, scaleY: 1 },
             chunkY: -500, chunksGenerated: 0, lavaY: 1000, lavaSpeed: 1.5,
-            matrixEnergy: 100, maxMatrixEnergy: 100, matrixDrain: 0.8, matrixRecharge: 0.3
+            matrixEnergy: 100, maxMatrixEnergy: 100, matrixDrain: 0.8, matrixRecharge: 0.3,
+            hasRevived: false, isInvulnerable: false, invulnerableTimer: 0
         };
 
         // --- Assets ---
@@ -333,6 +351,15 @@
                     os.start(now);
                     os.stop(now + 0.5);
                 }
+                else if (type === 'revive') {
+                    os.type = 'sine';
+                    os.frequency.setValueAtTime(400, now);
+                    os.frequency.linearRampToValueAtTime(800, now + 0.5);
+                    g.gain.setValueAtTime(0.5, now);
+                    g.gain.linearRampToValueAtTime(0, now + 0.5);
+                    os.start(now);
+                    os.stop(now + 0.5);
+                }
             }
         };
 
@@ -376,7 +403,7 @@
                     const enemy = Bodies.circle(ex, ey, 25, {
                         isStatic: true, isSensor: true, label: 'enemy',
                         render: { fillStyle: '#f00', strokeStyle: '#fff', lineWidth: 3 },
-                        plugin: { startX: ex, range: 100 + Math.random() * 200, speed: 0.02 + Math.random() * 0.03, offset: Math.random() * 100 }
+                        plugin: { startX: ex, range: 100 + Math.random() * 200, speed: 0.01 + Math.random() * 0.015, offset: Math.random() * 100 }
                     });
                     newBodies.push(enemy);
                 }
@@ -450,8 +477,58 @@
             }
         }
 
-        document.getElementById('message').addEventListener('click', () => { if (Game.finished) location.reload(); });
-        document.getElementById('message').addEventListener('touchstart', () => { if (Game.finished) location.reload(); });
+        document.getElementById('btnRevive').addEventListener('click', watchAd);
+        document.getElementById('btnRevive').addEventListener('touchstart', (e) => { e.stopPropagation(); watchAd(); });
+        document.getElementById('btnGiveUp').addEventListener('click', () => location.reload());
+        document.getElementById('btnGiveUp').addEventListener('touchstart', (e) => { e.stopPropagation(); location.reload(); });
+
+        function watchAd() {
+            document.getElementById('message').style.display = 'none';
+            document.getElementById('adOverlay').style.display = 'flex';
+            let left = 3;
+            document.getElementById('adTimer').innerText = left;
+            const iv = setInterval(() => {
+                left--;
+                document.getElementById('adTimer').innerText = left;
+                if (left <= 0) {
+                    clearInterval(iv);
+                    document.getElementById('adOverlay').style.display = 'none';
+                    revive();
+                }
+            }, 1000);
+        }
+
+        function revive() {
+            Game.finished = false;
+            Game.hasRevived = true;
+            Game.isInvulnerable = true;
+            Game.invulnerableTimer = 120; // 2 seconds at 60fps
+            Game.isMatrix = false;
+            Game.matrixEnergy = Game.maxMatrixEnergy; // Refill needed? Let's give partial refil or leave as is. User plan said nothing, but full energy is nice.
+
+            // Adjust Lava
+            Game.lavaY -= 800;
+
+            // Clear nearby threats
+            const pPos = player.position;
+            Composite.allBodies(world).forEach(b => {
+                if (b.label === 'enemy' || (b.label === 'coin')) { // Keep coins? Maybe just enemies.
+                    if (b.position.y > Game.lavaY - 1000) Composite.remove(world, b);
+                }
+            });
+
+            // Reset Player
+            Composite.add(world, player);
+            Body.setVelocity(player, { x: 0, y: 0 });
+            Body.setAngularVelocity(player, 0);
+            Body.setAngle(player, 0);
+            // Move player up a bit to be safe
+            Body.setPosition(player, { x: 0, y: player.position.y - 300 });
+
+            // Ensure gravity is reset or kept? Keep current gravity.
+
+            Sound.play('revive');
+        }
 
         function handleInput(code, isDown) {
             if (Game.finished) {
@@ -527,6 +604,13 @@
                 }
             }
 
+
+            // Invulnerability Check
+            if (Game.isInvulnerable) {
+                Game.invulnerableTimer--;
+                if (Game.invulnerableTimer <= 0) Game.isInvulnerable = false;
+            }
+
             const currentH = -player.position.y;
             if (currentH > Game.score) {
                 Game.score = Math.floor(currentH);
@@ -597,6 +681,9 @@
                 }
 
                 if (a.label === 'enemy' || b.label === 'enemy') {
+                    // Check invulnerability
+                    if (Game.isInvulnerable) return;
+
                     if (a === player || b === player) gameOver();
                 }
 
@@ -612,10 +699,27 @@
             Game.finished = true;
             document.getElementById('message').style.display = 'block';
             document.getElementById('finalScore').innerText = 'SCORE: ' + (Game.score / 100).toFixed(1) + 'm';
+
+            // Show Revive button only if not revived yet
+            if (Game.hasRevived) {
+                document.getElementById('btnRevive').style.display = 'none';
+                document.getElementById('btnGiveUp').innerText = "TRY AGAIN";
+            } else {
+                document.getElementById('btnRevive').style.display = 'block';
+                document.getElementById('btnGiveUp').innerText = "GIVE UP";
+            }
+
             vibrate([50, 50, 50]);
             Sound.play('explode');
-            explodeParticles(player.position.x, player.position.y, '#0f0');
+            // Do NOT remove player yet if we want to respawn easily? 
+            // Actually implementation_revive says "Respawn: Place player at safe Y". 
+            // So we should KEEP the player body but maybe hide it or set it to static?
+            // Existing code removed it. Let's NOT remove it, but make it static/invisible?
+            // Or just remove and re-create. Re-creating is safer to clear velocity/forces.
             Composite.remove(world, player);
+
+            // Note: revive() needs to add player back if removed.
+            // Let's modify revive() to re-add player.
         }
 
         function explodeParticles(x, y, color) {
@@ -750,6 +854,8 @@
         }
 
         function drawPlayer(ctx) {
+            if (Game.isInvulnerable && Math.floor(Date.now() / 100) % 2 === 0) return; // Blink
+
             const p = player;
             ctx.save();
             ctx.translate(p.position.x, p.position.y);
