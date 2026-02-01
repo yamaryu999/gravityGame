@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gravity Rotator - MATRIX TOWER</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #050505;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            pointer-events: none;
+            text-shadow: 0 0 5px #0ff;
+            font-weight: bold;
+        }
+
+        .controls {
+            font-size: 14px;
+            opacity: 0.9;
+            line-height: 1.5;
+            color: #ccffff;
+        }
+
+        @media (max-width: 600px) {
+            .controls {
+                display: none;
+            }
+        }
+
+        .key {
+            background: rgba(0, 255, 255, 0.1);
+            padding: 2px 8px;
+            border-radius: 4px;
+            border: 1px solid #0ff;
+            color: #0ff;
+            box-shadow: 0 0 5px rgba(0, 255, 255, 0.3);
+        }
+
+        #hud {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            text-align: right;
+            text-align: right;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        #matrixContainer {
+            width: 150px;
+            height: 8px;
+            background: rgba(0, 50, 50, 0.5);
+            border: 1px solid #0ff;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+
+        #matrixBar {
+            width: 100%;
+            height: 100%;
+            background: #0ff;
+            box-shadow: 0 0 10px #0ff;
+            transform-origin: left;
+            transition: transform 0.1s linear;
+        }
+
+        .score {
+            font-size: 32px;
+            color: #0f0;
+            text-shadow: 0 0 10px #0f0;
+        }
+
+        .label {
+            font-size: 12px;
+            color: #888;
+        }
+
+        #message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 80px;
+            font-weight: 900;
+            color: #fff;
+            text-shadow: 0 0 20px #f00, 0 0 40px #f00;
+            display: none;
+            z-index: 100;
+            pointer-events: auto;
+            white-space: nowrap;
+            letter-spacing: 10px;
+            text-align: center;
+        }
+
+        .sub {
+            display: block;
+            font-size: 24px;
+            letter-spacing: 2px;
+            margin-top: 10px;
+            color: #ccc;
+            text-shadow: none;
+        }
+
+        #touchParams {
+            position: absolute;
+            inset: 0;
+            /* Cover full screen for swipe detection */
+            pointer-events: none;
+            z-index: 20;
+            display: none;
+        }
+
+        .touchBtn {
+            position: absolute;
+            background: rgba(0, 255, 255, 0.1);
+            border: 2px solid rgba(0, 255, 255, 0.5);
+            border-radius: 50%;
+            color: #0ff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            font-weight: bold;
+            pointer-events: auto;
+            backdrop-filter: blur(2px);
+            touch-action: none;
+        }
+
+        .touchBtn:active {
+            background: rgba(0, 255, 255, 0.4);
+            transform: scale(0.95);
+        }
+
+        #btnLeft {
+            bottom: 30px;
+            left: 30px;
+            width: 70px;
+            height: 70px;
+        }
+
+        #btnRight {
+            bottom: 30px;
+            left: 120px;
+            width: 70px;
+            height: 70px;
+        }
+
+        #btnJump {
+            bottom: 30px;
+            right: 30px;
+            width: 80px;
+            height: 80px;
+            border-color: #0f0;
+            color: #0f0;
+        }
+
+        #btnMatrix {
+            bottom: 130px;
+            right: 45px;
+            width: 50px;
+            height: 50px;
+            border-color: #f0f;
+            color: #f0f;
+            font-size: 12px;
+        }
+
+        /* Swipe Hint */
+        #swipeHint {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 14px;
+            pointer-events: none;
+            text-align: center;
+        }
+
+        @media (pointer: coarse) {
+            #touchParams {
+                display: block;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="ui">
+        <div class="controls">
+            <span class="key">Q</span> / <span class="key">E</span> : ROTATE GRAVITY<br>
+            <span class="key">←</span> <span class="key">↑</span> <span class="key">→</span> : MOVE<br>
+            <span class="key">SPACE</span> : MATRIX MODE (HOLD)
+        </div>
+    </div>
+
+    <div id="hud">
+        <div class="label">HEIGHT</div>
+        <div class="score" id="scoreVal">0m</div>
+        <div style="margin-top: 10px;">
+            <div class="label">MATRIX ENERGY</div>
+            <div id="matrixContainer">
+                <div id="matrixBar"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="message">
+        GAME OVER
+        <span class="sub" id="finalScore">SCORE: 0</span>
+        <span class="sub" style="font-size: 16px; margin-top: 20px;">TAP TO RETRY</span>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="touchParams">
+        <div id="swipeHint">SWIPE LEFT/RIGHT TO ROTATE</div>
+        <div id="btnLeft" class="touchBtn" data-key="ArrowLeft">←</div>
+        <div id="btnRight" class="touchBtn" data-key="ArrowRight">→</div>
+        <!-- Rotation buttons removed -->
+        <div id="btnJump" class="touchBtn" data-key="ArrowUp">↑</div>
+        <div id="btnMatrix" class="touchBtn" data-key="Space">TIME</div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script>
+        const Engine = Matter.Engine,
+            Runner = Matter.Runner,
+            Bodies = Matter.Bodies,
+            Composite = Matter.Composite,
+            Events = Matter.Events,
+            Vector = Matter.Vector,
+            Body = Matter.Body;
+
+        const engine = Engine.create({ positionIterations: 8, velocityIterations: 8 });
+        const world = engine.world;
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- Game State ---
+        const Game = {
+            gravityIndex: 0,
+            targetRotateAngle: 0,
+            currentRotateAngle: 0,
+            gravityDirs: [{ x: 0, y: 1 }, { x: 1, y: 0 }, { x: 0, y: -1 }, { x: -1, y: 0 }],
+            playerSpeed: 0.007, jumpForce: 0.13, finished: false, score: 0,
+            isMatrix: false, timeScaleTarget: 1.0, camera: { x: 0, y: 0 },
+            particles: [], stars: [], playerVisual: { scaleX: 1, scaleY: 1 },
+            chunkY: -500, chunksGenerated: 0, lavaY: 1000, lavaSpeed: 1.5,
+            matrixEnergy: 100, maxMatrixEnergy: 100, matrixDrain: 0.8, matrixRecharge: 0.3
+        };
+
+        // --- Assets ---
+        for (let i = 0; i < 150; i++) {
+            Game.stars.push({
+                x: Math.random() * 3000 - 1500, y: Math.random() * 3000 - 1500,
+                z: Math.random() * 2 + 0.5, size: Math.random() * 2, alpha: Math.random() * 0.5 + 0.2
+            });
+        }
+
+        function createBlock(x, y, w, h, isStatic, color, type = 'wall') {
+            return Bodies.rectangle(x, y, w, h, {
+                isStatic: isStatic, friction: 0.5, label: type, render: { fillStyle: color, strokeStyle: color }
+            });
+        }
+
+        // --- Generation ---
+        const CHUNK_HEIGHT = 1000;
+        function generateChunk(yPos) {
+            const newBodies = [];
+            newBodies.push(createBlock(-675, yPos - CHUNK_HEIGHT / 2, 200, CHUNK_HEIGHT, true, '#444'));
+            newBodies.push(createBlock(675, yPos - CHUNK_HEIGHT / 2, 200, CHUNK_HEIGHT, true, '#444'));
+            const numPlatforms = 5 + Math.floor(Math.random() * 5);
+            for (let i = 0; i < numPlatforms; i++) {
+                const w = 100 + Math.random() * 300;
+                const h = 20;
+                const x = (Math.random() - 0.5) * 800;
+                const y = yPos - Math.random() * CHUNK_HEIGHT;
+                newBodies.push(createBlock(x, y, w, h, true, '#0ff'));
+                if (Math.random() > 0.5) newBodies.push(createBlock(x, y - 50, 40, 40, false, '#fa0', 'crate'));
+
+                // Spawn Collectibles (Data Orbs)
+                if (Math.random() > 0.3) {
+                    const cx = (Math.random() - 0.5) * 800;
+                    const cy = y - Math.random() * 200 - 100;
+                    const coin = Bodies.circle(cx, cy, 15, {
+                        isStatic: true, isSensor: true, label: 'coin',
+                        render: { fillStyle: '#ffd700', strokeStyle: '#ffaa00' }
+                    });
+                    newBodies.push(coin);
+                }
+            }
+            Composite.add(world, newBodies);
+        }
+
+        Composite.add(world, createBlock(0, 200, 1350, 50, true, '#444'));
+        generateChunk(0);
+        Game.chunkY = -CHUNK_HEIGHT;
+
+        const player = Bodies.rectangle(0, 0, 38, 38, {
+            inertia: Infinity, friction: 0.0, frictionAir: 0.02, chamfer: { radius: 4 }, label: 'player', render: { fillStyle: '#0f0' }
+        });
+        Composite.add(world, player);
+
+        // --- Input Handling ---
+        const keys = {};
+        document.addEventListener('keydown', e => handleInput(e.code, true));
+        document.addEventListener('keyup', e => handleInput(e.code, false));
+
+        const touchBtns = document.querySelectorAll('.touchBtn');
+        touchBtns.forEach(btn => {
+            btn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                e.stopPropagation(); // Stop propagation to document swipe
+                handleInput(btn.dataset.key, true);
+                vibrate(10);
+            });
+            btn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                handleInput(btn.dataset.key, false);
+            });
+            btn.addEventListener('touchcancel', (e) => { handleInput(btn.dataset.key, false); });
+        });
+
+        // Swipe Logic
+        let touchStartX = 0;
+        let touchStartY = 0;
+        const SWIPE_THRESHOLD = 50;
+
+        document.addEventListener('touchstart', e => {
+            if (e.target.classList.contains('touchBtn')) return;
+            touchStartX = e.changedTouches[0].screenX;
+            touchStartY = e.changedTouches[0].screenY;
+        });
+
+        document.addEventListener('touchend', e => {
+            if (e.target.classList.contains('touchBtn')) return;
+            const touchEndX = e.changedTouches[0].screenX;
+            const touchEndY = e.changedTouches[0].screenY;
+            handleSwipe(touchStartX, touchStartY, touchEndX, touchEndY);
+        });
+
+        function handleSwipe(startX, startY, endX, endY) {
+            const diffX = endX - startX;
+            const diffY = endY - startY;
+
+            if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > SWIPE_THRESHOLD) {
+                // Horizontal Swipe
+                if (diffX > 0) {
+                    // Swipe Right -> Rotate Left (Gravity moves Right?)
+                    // Mapping: User swipes Right -> World rotates to follow? Or swipe "screen" right?
+                    // Let's implement key equivalent logic.
+                    // KeyE (Right) rotates gravity clockwise.
+                    rotateGravity(1);
+                } else {
+                    // Swipe Left -> Rotate Right
+                    rotateGravity(-1);
+                }
+            }
+        }
+
+        document.getElementById('message').addEventListener('click', () => { if (Game.finished) location.reload(); });
+        document.getElementById('message').addEventListener('touchstart', () => { if (Game.finished) location.reload(); });
+
+        function handleInput(code, isDown) {
+            if (Game.finished) {
+                if (isDown && code === 'KeyR') location.reload();
+                return;
+            }
+
+            keys[code] = isDown;
+            if (isDown) {
+                if (code === 'KeyQ') rotateGravity(-1);
+                if (code === 'KeyE') rotateGravity(1);
+                if (code === 'Space' && Game.matrixEnergy > 10) Game.isMatrix = true;
+            } else {
+                if (code === 'Space') Game.isMatrix = false;
+            }
+        }
+
+        function rotateGravity(dir) {
+            Game.gravityIndex = (Game.gravityIndex + dir + 4) % 4;
+            const g = Game.gravityDirs[Game.gravityIndex];
+            engine.gravity.x = g.x;
+            engine.gravity.y = g.y;
+            Game.targetRotateAngle += (dir * -Math.PI / 2);
+
+            vibrate(30); // Heavy impact
+
+            // Hide hint after first use
+            const hint = document.getElementById('swipeHint');
+            if (hint) hint.style.display = 'none';
+        }
+
+        function vibrate(ms) {
+            if (navigator.vibrate) navigator.vibrate(ms);
+        }
+
+        // --- Update Loop ---
+        Events.on(engine, 'beforeUpdate', () => {
+            if (Game.finished) return;
+
+            // Boundaries
+            if (player.position.x < -570) { Body.setPosition(player, { x: -570, y: player.position.y }); Body.setVelocity(player, { x: 0, y: player.velocity.y }); }
+            if (player.position.x > 570) { Body.setPosition(player, { x: 570, y: player.position.y }); Body.setVelocity(player, { x: 0, y: player.velocity.y }); }
+
+            const targetScale = Game.isMatrix ? 0.2 : 1.0;
+            engine.timing.timeScale += (targetScale - engine.timing.timeScale) * 0.2;
+            Game.currentRotateAngle += (Game.targetRotateAngle - Game.currentRotateAngle) * 0.1;
+
+            const g = engine.gravity;
+            const right = { x: g.y, y: -g.x };
+
+            let move = 0;
+            if (keys['ArrowRight']) move = 1;
+            if (keys['ArrowLeft']) move = -1;
+            const timeFactor = 1 / Math.max(engine.timing.timeScale, 0.1);
+
+            if (move !== 0) {
+                Body.applyForce(player, player.position, {
+                    x: right.x * move * Game.playerSpeed * timeFactor,
+                    y: right.y * move * Game.playerSpeed * timeFactor
+                });
+            }
+
+            if (keys['ArrowUp']) {
+                const vDotG = player.velocity.x * g.x + player.velocity.y * g.y;
+                if (Math.abs(vDotG) < 0.2) {
+                    Game.playerVisual.scaleX = 0.7;
+                    Game.playerVisual.scaleY = 1.3;
+                    Body.applyForce(player, player.position, {
+                        x: -g.x * Game.jumpForce * timeFactor, y: -g.y * Game.jumpForce * timeFactor
+                    });
+                }
+            }
+
+            const currentH = -player.position.y;
+            if (currentH > Game.score) {
+                Game.score = Math.floor(currentH);
+                document.getElementById('scoreVal').innerText = (Game.score / 100).toFixed(1) + 'm';
+            }
+            if (player.position.y < Game.chunkY + 1500) {
+                generateChunk(Game.chunkY);
+                Game.chunkY -= CHUNK_HEIGHT;
+                Game.chunksGenerated++;
+                Game.lavaSpeed += 0.05;
+            }
+            const cleanupY = Game.lavaY + 500;
+            Composite.allBodies(world).forEach(b => { if (b !== player && b.position.y > cleanupY && !b.isStatic) Composite.remove(world, b); });
+
+            let effectiveLavaSpeed = Game.lavaSpeed;
+            if (Game.isMatrix) effectiveLavaSpeed *= 0.2;
+            Game.lavaY -= effectiveLavaSpeed;
+            if (player.position.y > Game.lavaY) gameOver();
+            // Matrix Energy Logic
+            if (Game.isMatrix) {
+                Game.matrixEnergy -= Game.matrixDrain;
+                if (Game.matrixEnergy <= 0) {
+                    Game.matrixEnergy = 0;
+                    Game.isMatrix = false;
+                }
+            } else {
+                Game.matrixEnergy = Math.min(Game.matrixEnergy + Game.matrixRecharge, Game.maxMatrixEnergy);
+            }
+            // Update HUD Bar
+            const barPct = Game.matrixEnergy / Game.maxMatrixEnergy;
+            document.getElementById('matrixBar').style.transform = `scaleX(${barPct})`;
+            document.getElementById('matrixBar').style.background = Game.isMatrix ? '#fff' : '#0ff';
+
+            Game.playerVisual.scaleX += (1 - Game.playerVisual.scaleX) * 0.1;
+            Game.playerVisual.scaleY += (1 - Game.playerVisual.scaleY) * 0.1;
+        });
+
+        Events.on(engine, 'collisionStart', event => {
+            event.pairs.forEach(pair => {
+                const a = pair.bodyA, b = pair.bodyB;
+                // Player vs Coin
+                let coinBody = null;
+                if (a.label === 'player' && b.label === 'coin') coinBody = b;
+                if (b.label === 'player' && a.label === 'coin') coinBody = a;
+
+                if (coinBody) {
+                    Composite.remove(world, coinBody);
+                    Game.matrixEnergy = Math.min(Game.matrixEnergy + 20, Game.maxMatrixEnergy);
+                    Game.score += 500; // Bonus score
+                    vibrate(5);
+                    explodeParticles(coinBody.position.x, coinBody.position.y, '#ffd700');
+                    return; // Skip impact effect
+                }
+
+                if (a === player || b === player) {
+                    Game.playerVisual.scaleX = 1.3;
+                    Game.playerVisual.scaleY = 0.7;
+                }
+            });
+        });
+
+        function gameOver() {
+            if (Game.finished) return;
+            Game.finished = true;
+            document.getElementById('message').style.display = 'block';
+            document.getElementById('finalScore').innerText = 'SCORE: ' + (Game.score / 100).toFixed(1) + 'm';
+            vibrate([50, 50, 50]);
+            explodeParticles(player.position.x, player.position.y, '#0f0');
+            Composite.remove(world, player);
+        }
+
+        function explodeParticles(x, y, color) {
+            for (let i = 0; i < 30; i++) {
+                Game.particles.push({
+                    x: x, y: y, vx: (Math.random() - 0.5) * 15, vy: (Math.random() - 0.5) * 15, life: 1.0, color: color
+                });
+            }
+        }
+
+        // --- Render ---
+        const runner = Runner.create();
+        Runner.run(runner, engine);
+
+        function render() {
+            requestAnimationFrame(render);
+            let shakeX = 0, shakeY = 0;
+            if (Game.isMatrix) {
+                shakeX = (Math.random() - 0.5) * 4;
+                shakeY = (Math.random() - 0.5) * 4;
+            }
+
+            ctx.fillStyle = '#050505';
+            ctx.fillRect(0, 0, width, height);
+
+            ctx.save();
+            ctx.translate(width / 2 + shakeX, height / 2 + shakeY);
+            const targetCamX = player.position.x;
+            const targetCamY = player.position.y - 200;
+            if (!Game.finished) {
+                Game.camera.x += (targetCamX - Game.camera.x) * 0.1;
+                Game.camera.y += (targetCamY - Game.camera.y) * 0.1;
+            }
+
+            ctx.rotate(Game.currentRotateAngle);
+            ctx.translate(-Game.camera.x, -Game.camera.y);
+
+            Game.stars.forEach(star => {
+                ctx.fillStyle = '#fff';
+                ctx.globalAlpha = star.alpha;
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1.0;
+
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.2)';
+            ctx.fillRect(-2000, Game.lavaY, 4000, 2000);
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#f00';
+            ctx.lineWidth = 5;
+            ctx.strokeStyle = '#f00';
+            ctx.beginPath();
+            ctx.moveTo(-2000, Game.lavaY);
+            ctx.lineTo(2000, Game.lavaY);
+            ctx.stroke();
+
+            Composite.allBodies(world).forEach(b => {
+                if (b === player) return;
+                if (b.render.fillStyle) {
+                    ctx.fillStyle = b.render.fillStyle;
+                    ctx.strokeStyle = b.render.strokeStyle || b.render.fillStyle;
+                    ctx.shadowColor = ctx.fillStyle;
+                    ctx.shadowBlur = Game.isMatrix ? 20 : 10;
+                    if (b.label === 'wall') ctx.shadowBlur = 0;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    const v = b.vertices;
+                    ctx.moveTo(v[0].x, v[0].y);
+                    for (let i = 1; i < v.length; i++) ctx.lineTo(v[i].x, v[i].y);
+                    ctx.closePath();
+                    if (Game.isMatrix) {
+                        ctx.stroke();
+                        ctx.globalAlpha = 0.2;
+                        ctx.fill();
+                        ctx.globalAlpha = 1.0;
+                    } else {
+                        ctx.fill();
+                    }
+                }
+            });
+
+            if (!Game.finished) drawPlayer(ctx);
+            updateAndDrawParticles(ctx);
+            ctx.restore();
+
+            if (Game.isMatrix) {
+                ctx.fillStyle = "rgba(0, 255, 0, 0.1)";
+                ctx.fillRect(0, 0, width, height);
+                ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+                for (let i = 0; i < height; i += 4) ctx.fillRect(0, i, width, 1);
+                ctx.fillStyle = "#0f0";
+                ctx.font = "20px monospace";
+                ctx.fillText("MATRIX MODE ACTIVE", 20, height - 20);
+            }
+        }
+
+        function drawPlayer(ctx) {
+            const p = player;
+            ctx.save();
+            ctx.translate(p.position.x, p.position.y);
+            ctx.scale(Game.playerVisual.scaleX, Game.playerVisual.scaleY);
+            ctx.shadowColor = Game.isMatrix ? '#0fa' : '#0f0';
+            ctx.shadowBlur = 20;
+            ctx.fillStyle = Game.isMatrix ? '#000' : '#0f0';
+            ctx.strokeStyle = '#0f0';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(-19, -19, 38, 38, 5);
+            ctx.fill();
+            if (Game.isMatrix) ctx.stroke();
+
+            const vx = p.velocity.x;
+            const vy = p.velocity.y;
+            const speed = Math.sqrt(vx * vx + vy * vy);
+            const lookX = (speed > 0.1) ? (vx / speed) * 5 : 0;
+            const lookY = (speed > 0.1) ? (vy / speed) * 5 : 0;
+
+            if (!Game.isMatrix) {
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(-9 + lookX, -5 + lookY, 6, 0, Math.PI * 2);
+                ctx.arc(9 + lookX, -5 + lookY, 6, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                ctx.arc(-9 + lookX * 1.5, -5 + lookY * 1.5, 3, 0, Math.PI * 2);
+                ctx.arc(9 + lookX * 1.5, -5 + lookY * 1.5, 3, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#0f0';
+                ctx.font = '10px monospace';
+                ctx.fillText('0', -12 + lookX, 0 + lookY);
+                ctx.fillText('1', 6 + lookX, 0 + lookY);
+            }
+            ctx.restore();
+        }
+
+        function updateAndDrawParticles(ctx) {
+            for (let i = Game.particles.length - 1; i >= 0; i--) {
+                const p = Game.particles[i];
+                p.life -= 0.02;
+                p.x += p.vx;
+                p.y += p.vy;
+                if (Game.isMatrix) { p.x += p.vx * -0.5; p.y += p.vy * -0.5; }
+                if (p.life <= 0) { Game.particles.splice(i, 1); continue; }
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = p.color;
+                ctx.beginPath();
+                ctx.rect(p.x, p.y, 8, 8);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1.0;
+        }
+
+        render();
+    </script>
+</body>
+
+</html>
